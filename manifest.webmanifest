@@ -1,0 +1,12 @@
+{
+  "name": "ملوك التحدي - الغرف المباشرة",
+  "short_name": "ملوك التحدي",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1c1836",
+  "theme_color": "#1c1836",
+  "description": "غرف مباشرة ودردشة وصوت وفيديو"
+}
