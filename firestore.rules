@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function mem(r, u) {
+      return get(/databases/$(database)/documents/rooms/$(r)/members/$(u)).data;
+    }
+    function isMem(r) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/rooms/$(r)/members/$(request.auth.uid));
+    }
+    function staff(r) {
+      return isMem(r) && mem(r, request.auth.uid).role in ['owner', 'cohost'];
+    }
+    function ownerOf(r) {
+      return get(/databases/$(database)/documents/rooms/$(r)).data.ownerId;
+    }
+    match /rooms/{r} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update: if request.auth.uid == resource.data.ownerId &&
+        request.resource.data.ownerId == resource.data.ownerId;
+      match /members/{u} {
+        allow read: if request.auth != null;
+        allow create: if request.auth.uid == u &&
+          !exists(/databases/$(database)/documents/rooms/$(r)/bans/$(u)) &&
+          request.resource.data.role == (ownerOf(r) == u ? 'owner' : 'participant');
+        allow update: if (request.auth.uid == ownerOf(r) && resource.data.role != 'owner' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'muted'])) ||
+          (staff(r) && resource.data.role == 'participant' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['muted']));
+        allow delete: if request.auth.uid == u ||
+          (request.auth.uid == ownerOf(r) && resource.data.role != 'owner') ||
+          (staff(r) && resource.data.role == 'participant');
+      }
+      match /bans/{u} {
+        allow get: if request.auth.uid == u || staff(r);
+        allow list: if staff(r);
+        allow create: if staff(r) && u != ownerOf(r) &&
+          (request.auth.uid == ownerOf(r) || mem(r, u).role == 'participant');
+        allow delete: if staff(r);
+      }
+      match /messages/{m} {
+        allow read: if isMem(r);
+        allow create: if isMem(r) && request.resource.data.uid == request.auth.uid &&
+          request.resource.data.text is string && request.resource.data.text.size() <= 300;
+      }
+    }
+  }
+}
