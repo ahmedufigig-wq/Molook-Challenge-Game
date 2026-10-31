@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LiveCom</title>
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22LiveCom%22%2C%22display%22%3A%22standalone%22%2C%22start_url%22%3A%22.%22%2C%22background_color%22%3A%22%231c1836%22%7D">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1c1836;--sf:#2a2450;--sf2:#362f64;--tx:#f3f0ff;--mu:#a9a3d1;--ac:#ff5a6e;--ok:#4fd1a5;--r:14px}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--tx);font:400 16px/1.6 "IBM Plex Sans Arabic",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:8px 14px;background:var(--sf2)}
+button.p{background:var(--ac);color:#fff;font-weight:600}
+button.g{background:none;color:var(--mu)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+input,textarea{width:100%;background:var(--sf);border:1px solid var(--sf2);border-radius:10px;padding:10px 12px;margin:6px 0 12px}
+.view{display:none;height:100%;flex-direction:column}.view.on{display:flex}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px}
+h1{font-size:26px;font-weight:700}h2{font-size:18px}
+.live{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ac);margin-inline-start:8px;animation:pl 1.6s infinite}
+@keyframes pl{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){.live{animation:none}}
+.center{margin:auto;width:min(380px,92%);background:var(--sf);padding:24px;border-radius:var(--r)}
+#list{padding:0 16px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;overflow:auto}
+.card{background:var(--sf);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:6px;border-inline-start:4px solid var(--ac)}
+.card small,.mu{color:var(--mu)}
+.empty{grid-column:1/-1;text-align:center;color:var(--mu);padding:48px 0}
+dialog{margin:auto;border:0;border-radius:var(--r);background:var(--sf);color:var(--tx);padding:22px;width:min(400px,92%)}
+dialog::backdrop{background:#000a}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+#room{overflow:hidden}
+.rbody{flex:1;display:flex;min-height:0}
+#zego{flex:1;min-width:0;background:#000}
+aside{width:320px;display:flex;flex-direction:column;background:var(--sf);min-height:0}
+.tabs{display:flex}.tabs button{flex:1;border-radius:0;background:none;padding:10px}.tabs button.on{border-bottom:3px solid var(--ac);font-weight:600}
+.pane{display:none;flex:1;min-height:0;flex-direction:column}.pane.on{display:flex}
+#msgs,#mem{flex:1;overflow:auto;padding:10px 12px}
+.msg{margin-bottom:8px;word-break:break-word}.msg b{color:var(--ok)}
+#cf{display:flex;gap:6px;padding:8px}#cf input{margin:0}
+.m{padding:8px 0;border-bottom:1px solid var(--sf2)}
+.m .a{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}.m .a button{padding:3px 9px;font-size:13px}
+.tag{font-size:12px;background:var(--sf2);padding:1px 8px;border-radius:99px;margin-inline-start:6px}
+@media(max-width:760px){.rbody{flex-direction:column}aside{width:100%;height:42%}}
+</style>
+</head>
+<body>
+
+<section class="view on" id="vLogin"><div class="center">
+<h1>LiveCom<span class="live"></span></h1>
+<p class="mu">اختر اسماً وادخل مباشرة، بدون بريد أو كلمة مرور.</p>
+<label for="nm">اسمك</label><input id="nm" maxlength="20" autocomplete="off">
+<button class="p" id="go" style="width:100%">دخول</button>
+<p id="err" style="color:var(--ac);margin-top:10px"></p>
+</div></section>
+
+<section class="view" id="vLobby">
+<header><h1>الغرف المباشرة<span class="live"></span></h1><button class="p" id="newBtn">غرفة جديدة</button></header>
+<div id="list"></div>
+</section>
+
+<section class="view" id="room">
+<header><div><h2 id="rt"></h2><small class="mu" id="rc"></small></div><button class="p" id="leave">مغادرة</button></header>
+<div class="rbody">
+<div id="zego"></div>
+<aside>
+<div class="tabs"><button class="on" data-t="chat">الدردشة</button><button data-t="mem">الأعضاء</button></div>
+<div class="pane on" id="p-chat"><div id="msgs"></div>
+<div id="cf"><input id="ci" maxlength="300" placeholder="اكتب رسالة" autocomplete="off"><button class="p" id="cs">إرسال</button></div></div>
+<div class="pane" id="p-mem"><div id="mem"></div></div>
+</aside>
+</div>
+</section>
+
+<dialog id="dNew">
+<h2>إنشاء غرفة</h2><br>
+<label for="rn">اسم الغرفة</label><input id="rn" maxlength="40">
+<label for="rd">الوصف</label><textarea id="rd" rows="2" maxlength="120"></textarea>
+<div class="row"><label><input type="radio" name="vis" value="pub" checked style="width:auto;margin:0"> عامة</label>
+<label><input type="radio" name="vis" value="prv" style="width:auto;margin:0"> خاصة</label></div>
+<input id="rcode" placeholder="رمز الغرفة (للخاصة فقط)" maxlength="12" style="margin-top:12px">
+<div class="row"><button class="p" id="mk">إنشاء وبدء البث</button><button class="g" id="cx">إلغاء</button></div>
+</dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/@zegocloud/zego-uikit-prebuilt/zego-uikit-prebuilt.js"></script>
+<script>
+/* ========= 1) الإعدادات: عدّل القيم هنا فقط ========= */
+const CFG = {
+  firebase: { apiKey:"", authDomain:"", projectId:"", storageBucket:"", messagingSenderId:"", appId:"" },
+  zegoAppID: 0,            // رقم AppID من لوحة ZEGO
+  zegoServerSecret: ""     // للتجربة فقط. في الإنتاج ولّد التوكن من خادم.
+};
+
+/* ========= 2) تهيئة ========= */
+firebase.initializeApp(CFG.firebase);
+const auth = firebase.auth(), db = firebase.firestore();
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sha = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2,'0')).join('');
+const show = id => { document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === id)); };
+const ROLE = { owner:'المالك', cohost:'مشرف', participant:'مشارك' };
+let me = null, cur = null, myRole = 'participant', subs = [], zp = null, lobbyUnsub = null, left = false;
+
+/* ========= 3) تسجيل الدخول المجهول ========= */
+$('#nm').value = localStorage.getItem('lc_name') || '';
+$('#go').onclick = async () => {
+  const name = $('#nm').value.trim();
+  if (name.length < 2) return $('#err').textContent = 'اكتب اسماً من حرفين على الأقل.';
+  try {
+    const u = (await auth.signInAnonymously()).user;
+    localStorage.setItem('lc_name', name);
+    me = { uid: u.uid, name };
+    openLobby();
+  } catch (e) { $('#err').textContent = 'تعذر الدخول: ' + e.message; }
+};
+
+/* ========= 4) قائمة الغرف (النشطة فقط، لحظياً) ========= */
+function openLobby() {
+  show('vLobby');
+  lobbyUnsub && lobbyUnsub();
+  lobbyUnsub = db.collection('rooms').where('active', '==', true).onSnapshot(snap => {
+    const rooms = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    $('#list').innerHTML = rooms.length ? rooms.map(r => `
+      <div class="card"><h2>${esc(r.title)}${r.isPrivate ? ' 🔒' : ''}</h2>
+      <small>${esc(r.desc || 'بدون وصف')}</small>
+      <small>المضيف: ${esc(r.ownerName)}</small>
+      <button class="p" data-join="${r.id}">انضمام</button></div>`).join('')
+      : '<div class="empty">لا توجد غرف مباشرة الآن. أنشئ أول غرفة.</div>';
+    $('#list').querySelectorAll('[data-join]').forEach(b => b.onclick = () => join(rooms.find(r => r.id === b.dataset.join)));
+  });
+}
+
+/* ========= 5) إنشاء غرفة ========= */
+$('#newBtn').onclick = () => $('#dNew').showModal();
+$('#cx').onclick = () => $('#dNew').close();
+$('#mk').onclick = async () => {
+  const title = $('#rn').value.trim();
+  if (!title) return alert('اكتب اسم الغرفة.');
+  const isPrivate = document.querySelector('[name=vis]:checked').value === 'prv';
+  const code = $('#rcode').value.trim();
+  if (isPrivate && code.length < 3) return alert('الرمز يجب أن يكون 3 أحرف على الأقل.');
+  const data = { title, desc: $('#rd').value.trim(), isPrivate, codeHash: isPrivate ? await sha(code) : '',
+    ownerId: me.uid, ownerName: me.name, active: true, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+  const ref = await db.collection('rooms').add(data);
+  $('#dNew').close();
+  join({ id: ref.id, ...data });
+};
+
+/* ========= 6) الانضمام والأدوار ========= */
+async function join(r) {
+  if (!r) return;
+  if (r.ownerId !== me.uid) {
+    if ((await db.doc(`rooms/${r.id}/bans/${me.uid}`).get()).exists) return alert('أنت محظور من هذه الغرفة.');
+    if (r.isPrivate && await sha(prompt('أدخل رمز الغرفة') || '') !== r.codeHash) return alert('الرمز غير صحيح.');
+  }
+  cur = r; left = false;
+  myRole = r.ownerId === me.uid ? 'owner' : 'participant';
+  const mref = db.doc(`rooms/${r.id}/members/${me.uid}`);
+  await mref.set({ name: me.name, role: myRole, muted: false, joinedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  show('room');
+  $('#rt').textContent = r.title;
+  listen(r.id, mref);
+  startZego(r.id);
+}
+
+/* ========= 7) المستمعون اللحظيون ========= */
+function listen(id, mref) {
+  const base = `rooms/${id}`;
+  subs.push(mref.onSnapshot(s => {
+    if (left) return;
+    if (!s.exists) return exit('تم إخراجك من الغرفة.');
+    myRole = s.data().role;
+    if (s.data().muted) { try { zp?.turnMicrophoneOn?.(false); } catch (e) {} }
+  }));
+  subs.push(db.doc(`${base}/bans/${me.uid}`).onSnapshot(s => { if (s.exists && !left) exit('تم حظرك من الغرفة.'); }));
+  subs.push(db.doc(base).onSnapshot(s => { if (!left && (!s.exists || !s.data().active)) exit('أنهى المالك البث.'); }));
+  subs.push(db.collection(`${base}/members`).onSnapshot(s => renderMembers(s.docs.map(d => ({ id: d.id, ...d.data() })))));
+  subs.push(db.collection(`${base}/messages`).orderBy('at').limitToLast(100).onSnapshot(s => {
+    const el = $('#msgs');
+    el.innerHTML = s.docs.map(d => { const m = d.data(); return `<div class="msg"><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`; }).join('');
+    el.scrollTop = el.scrollHeight;
+  }));
+}
+
+/* ========= 8) إدارة الأعضاء (كتم، طرد، حظر، ترقية) ========= */
+const canAct = t => t.id !== me.uid && (myRole === 'owner' ? t.role !== 'owner' : myRole === 'cohost' && t.role === 'participant');
+function renderMembers(list) {
+  $('#rc').textContent = list.length + ' في الغرفة';
+  list.sort((a, b) => ['owner','cohost','participant'].indexOf(a.role) - ['owner','cohost','participant'].indexOf(b.role));
+  $('#mem').innerHTML = list.map(m => `<div class="m"><span>${esc(m.name)}</span><span class="tag">${ROLE[m.role]}</span>${m.muted ? '<span class="tag">مكتوم</span>' : ''}
+    ${canAct(m) ? `<div class="a"><button data-a="mute" data-u="${m.id}" data-v="${m.muted}">${m.muted ? 'إلغاء الكتم' : 'كتم'}</button>
+    <button data-a="kick" data-u="${m.id}">طرد</button><button data-a="ban" data-u="${m.id}" data-n="${esc(m.name)}">حظر</button>
+    ${myRole === 'owner' ? `<button data-a="role" data-u="${m.id}" data-r="${m.role}">${m.role === 'cohost' ? 'إزالة الإشراف' : 'ترقية لمشرف'}</button>` : ''}</div>` : ''}</div>`).join('');
+  $('#mem').querySelectorAll('[data-a]').forEach(b => b.onclick = () => act(b.dataset));
+  if (myRole !== 'participant' && !$('#bans')) {
+    $('#mem').insertAdjacentHTML('afterend', '<div id="bans" style="padding:8px 12px;max-height:30%;overflow:auto"></div>');
+    subs.push(db.collection(`rooms/${cur.id}/bans`).onSnapshot(s => {
+      $('#bans').innerHTML = '<h2>سجل الحظر</h2>' + (s.empty ? '<p class="mu">لا يوجد محظورون.</p>' :
+        s.docs.map(d => `<div class="m">${esc(d.data().name)} <button data-un="${d.id}">رفع الحظر</button></div>`).join(''));
+      $('#bans').querySelectorAll('[data-un]').forEach(b => b.onclick = () => db.doc(`rooms/${cur.id}/bans/${b.dataset.un}`).delete());
+    }));
+  }
+}
+async function act(d) {
+  const base = `rooms/${cur.id}`, mref = db.doc(`${base}/members/${d.u}`);
+  if (d.a === 'mute') await mref.update({ muted: d.v !== 'true' });
+  if (d.a === 'kick') await mref.delete();
+  if (d.a === 'ban') { await db.doc(`${base}/bans/${d.u}`).set({ name: d.n, by: me.uid, at: firebase.firestore.FieldValue.serverTimestamp() }); await mref.delete(); }
+  if (d.a === 'role') await mref.update({ role: d.r === 'cohost' ? 'participant' : 'cohost' }); /* لا يوجد نقل للملكية */
+}
+
+/* ========= 9) الدردشة النصية ========= */
+async function send() {
+  const t = $('#ci').value.trim(); if (!t) return;
+  $('#ci').value = '';
+  await db.collection(`rooms/${cur.id}/messages`).add({ uid: me.uid, name: me.name, text: t, at: firebase.firestore.FieldValue.serverTimestamp() });
+}
+$('#cs').onclick = send;
+$('#ci').onkeydown = e => { if (e.key === 'Enter') send(); };
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('#p-chat').classList.toggle('on', b.dataset.t === 'chat');
+  $('#p-mem').classList.toggle('on', b.dataset.t === 'mem');
+});
+
+/* ========= 10) بث ZEGO (فيديو/صوت متعدد المشاركين) ========= */
+function startZego(roomID) {
+  const token = ZegoUIKitPrebuilt.generateKitTokenForTest(CFG.zegoAppID, CFG.zegoServerSecret, roomID, me.uid, me.name);
+  zp = ZegoUIKitPrebuilt.create(token);
+  zp.joinRoom({
+    container: $('#zego'),
+    scenario: { mode: ZegoUIKitPrebuilt.GroupCall },
+    showPreJoinView: false, showLeavingView: false, showTextChat: false,
+    showUserList: false, showRoomTimer: true, showLeaveRoomConfirmDialog: false,
+    onLeaveRoom: () => exit()
+  });
+}
+
+/* ========= 11) المغادرة والتنظيف ========= */
+async function exit(msg) {
+  if (left) return; left = true;
+  subs.forEach(u => u()); subs = [];
+  try { zp?.destroy(); } catch (e) {}
+  zp = null; $('#zego').innerHTML = ''; $('#bans')?.remove();
+  try {
+    if (cur) {
+      if (myRole === 'owner') await db.doc(`rooms/${cur.id}`).update({ active: false });
+      await db.doc(`rooms/${cur.id}/members/${me.uid}`).delete();
+    }
+  } catch (e) {}
+  cur = null;
+  if (msg) alert(msg);
+  openLobby();
+}
+$('#leave').onclick = () => exit();
+window.addEventListener('pagehide', () => { if (cur && myRole === 'owner') db.doc(`rooms/${cur.id}`).update({ active: false }); });
+</script>
+</body>
+</html>
